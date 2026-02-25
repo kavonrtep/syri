@@ -873,6 +873,8 @@ cpdef apply_TS(long[:] astart, long[:] aend, long[:] bstart, long[:] bend, int t
                             if (bstart[j] - bstart[i]) > threshold:
                                 if (bend[j] - bend[i]) > threshold:
                                     df[i].push_back(j)
+            else:
+                break  # astart is sorted, so all subsequent j will also exceed mxgap
     out = {}
     for i in range(n):
         if df.count(i)== 1:

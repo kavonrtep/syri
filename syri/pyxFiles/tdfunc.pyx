@@ -779,31 +779,44 @@ cpdef makeBlocksTree_ctx(long[:] astart, long[:] aend, long[:] bstart, long[:] b
        they should be syntenic with respect to each other.
     """
     cdef:
-        Py_ssize_t                                  i,j, n = len(astart)
+        Py_ssize_t                                  i,j, n = len(astart), gi, gj, gsize
         cpp_map[long, cpp_deq[long]]                out
         cpp_map[long, cpp_deq[long]].iterator       it
-        long[:]                                     achr_int, bchr_int
+        long[:]                                     achr_int, bchr_int, grp_arr
     _, achr_int = np.unique(achr, return_inverse=True)
     _, bchr_int = np.unique(bchr, return_inverse=True)
+
+    # Pre-group indices by (achr, bchr) pair to avoid O(n^2) chromosome mismatch checks
+    groups = {}
     for i in range(<Py_ssize_t> n):
-        for j in range(<Py_ssize_t> i, <Py_ssize_t> n):
-            if achr_int[i] != achr_int[j]:
-                continue
-            if bchr_int[i] != bchr_int[j]:
-                continue
-            if (astart[j] - aend[i]) < tdgl:
-                if (astart[j] - astart[i]) > threshold:
-                    if (aend[j] - aend[i]) > threshold:
-                        if bdir[i] == 1:
-                            if (bstart[j] - bend[i]) < tdgl:
-                                if (bstart[j] - bstart[i]) > threshold:
-                                    if (bend[j] - bend[i]) > threshold:
-                                        out[i].push_back(j)
-                        else:
-                            if (bend[i] - bstart[j]) < tdgl:
-                                if (bstart[i] - bstart[j]) > threshold:
-                                    if (bend[i] - bend[j]) > threshold:
-                                        out[i].push_back(j)
+        key = (achr_int[i], bchr_int[i])
+        if key not in groups:
+            groups[key] = []
+        groups[key].append(i)
+
+    for grp_list in groups.values():
+        grp_arr = np.array(grp_list, dtype=np.int64)
+        gsize = len(grp_arr)
+        for gi in range(<Py_ssize_t> gsize):
+            i = grp_arr[gi]
+            for gj in range(<Py_ssize_t> gi, <Py_ssize_t> gsize):
+                j = grp_arr[gj]
+                if (astart[j] - aend[i]) < tdgl:
+                    if (astart[j] - astart[i]) > threshold:
+                        if (aend[j] - aend[i]) > threshold:
+                            if bdir[i] == 1:
+                                if (bstart[j] - bend[i]) < tdgl:
+                                    if (bstart[j] - bstart[i]) > threshold:
+                                        if (bend[j] - bend[i]) > threshold:
+                                            out[i].push_back(j)
+                            else:
+                                if (bend[i] - bstart[j]) < tdgl:
+                                    if (bstart[i] - bstart[j]) > threshold:
+                                        if (bend[i] - bend[j]) > threshold:
+                                            out[i].push_back(j)
+                else:
+                    break  # astart sorted within group, all subsequent j exceed tdgl
+
     it = out.begin()
     outdict = {}
     while it != out.end():

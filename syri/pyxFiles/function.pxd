@@ -20,37 +20,53 @@ cpdef inline getOverlapWithSynBlocks(np.ndarray[np.int64_t, ndim=1] start, np.nd
     assert(len(start) == len(end) == len(chrom) ==count)
     assert(len(in_start) == len(in_end) == len(in_chrom))
 
-    cdef Py_ssize_t i, j, n = len(in_start)
+    cdef Py_ssize_t i, k, n = len(in_start), right
     cdef np.int64_t blockuni, s, e
     cdef np.ndarray[np.npy_bool, ndim = 1, cast=True] uni = np.zeros(count, dtype="bool")
-    cdef np.ndarray[np.int64_t, ndim=1] blocks
+    cdef np.ndarray[np.int64_t, ndim=1] grp_starts, grp_ends
+
+    # Pre-group in-blocks by chromosome: within each group, in_start order is preserved
+    # (subset of a sorted sequence maintains sort order)
+    chr_groups = {}
+    for k in range(n):
+        c_val = in_chrom[k]
+        if c_val not in chr_groups:
+            chr_groups[c_val] = ([], [])
+        chr_groups[c_val][0].append(in_start[k])
+        chr_groups[c_val][1].append(in_end[k])
+
+    chr_arrays = {}
+    for c_val in chr_groups:
+        chr_arrays[c_val] = (np.array(chr_groups[c_val][0], dtype=np.int64),
+                             np.array(chr_groups[c_val][1], dtype=np.int64))
 
     for i in range(count):
-        blocks = np.zeros(n, dtype="int")
         blockuni = 0
         s = start[i]
         e = end[i]
         c = chrom[i]
-        for j in range(n):
-            if (in_start[j] < end[i]) and (in_end[j] > start[i]) and (in_chrom[j] == c):
-                blocks[j] = 1
 
-
-        for j in range(len(blocks)):
-            if blocks[j] == 1:
-                if (in_start[j] - s < threshold) and (e - in_end[j] < threshold):
-                    s = e
-                    break
-                elif in_start[j] < s and in_end[j] < e:
-                    s = in_end[j]
-                else:
-                    blockuni+= in_start[j]-s
-                    if in_end[j] < e:
-                        s = in_end[j]
-                    else:
+        if c in chr_arrays:
+            grp_starts = chr_arrays[c][0]
+            grp_ends = chr_arrays[c][1]
+            # Binary search: first index in group where grp_starts >= end[i]
+            right = np.searchsorted(grp_starts, e, side='left')
+            for k in range(right):
+                if grp_ends[k] > start[i]:
+                    if (grp_starts[k] - s < threshold) and (e - grp_ends[k] < threshold):
                         s = e
                         break
-        blockuni+= (e-s)
+                    elif grp_starts[k] < s and grp_ends[k] < e:
+                        s = grp_ends[k]
+                    else:
+                        blockuni += grp_starts[k] - s
+                        if grp_ends[k] < e:
+                            s = grp_ends[k]
+                        else:
+                            s = e
+                            break
+
+        blockuni += (e-s)
 
         if (blockuni > tUC) or (blockuni > tUP*(end[i]-start[i])):
             uni[i]=True
