@@ -187,7 +187,7 @@ def syri(args):
             for bchr in list(chrlink.keys()):
                 if bchr not in key_found:
                     logger.error('Chromosome ID ' + bchr + ' is present in alignments but not in query genome fasta. Exiting.')
-                    sys.exit()
+                    sys.exit(1)
         else:
             for chrid, seq in readfasta(args.qry.name).items():
                 if chrid in list(bchr_size.keys()):
@@ -200,7 +200,7 @@ def syri(args):
                     key_found = key_found + [chrid]
                     if len(seq) < bchr_size[chrid]:
                         logger.error('Length of query sequence of ' + chrid + ' is less than the maximum coordinate of its aligned regions. Exiting.')
-                        sys.exit()
+                        sys.exit(1)
             for bchr in list(bchr_size.keys()):
                 if bchr not in key_found:
                     logger.error('Chromosome ID ' + bchr + ' is available in alignments but not in query genome fasta. Exiting.')
