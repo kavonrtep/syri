@@ -489,6 +489,7 @@ def readCoords(coordsfin, chrmatch, cwdpath, prefix, args, cigar = False):
 def startSyri(args, coords):
     nCores = args.nCores
     bRT = args.bruteRunTime
+    bWork = args.bruteWork
     threshold = 50  ##args.threshold
     cwdPath = args.dir
     prefix = args.prefix
@@ -507,7 +508,7 @@ def startSyri(args, coords):
     # Identify intra-chromosomal events (synteny, inversions, intra-trans, intra-dup) for each chromosome as a separate
     # process in parallel
     with Pool(processes = nCores) as pool:
-        p = pool.map(partial(syri,threshold=threshold,coords=coords, cwdPath= cwdPath, bRT = bRT, prefix = prefix, tUC=tUC, tUP=tUP, invgl=invgl, tdgl=tdgl, tdolp=tdolp), uniChromo)
+        p = pool.map(partial(syri,threshold=threshold,coords=coords, cwdPath= cwdPath, bRT = bRT, prefix = prefix, tUC=tUC, tUP=tUP, invgl=invgl, tdgl=tdgl, tdolp=tdolp, bWork=bWork), uniChromo)
     if p != [None]*len(uniChromo):
         sys.exit()
     # for chromo in uniChromo:
@@ -519,14 +520,14 @@ def startSyri(args, coords):
 
     #Identify cross-chromosomal events in all chromosomes simultaneously
     from syri.tdfunc import getCTX
-    getCTX(coords, cwdPath, uniChromo, threshold, bRT, prefix, tUC, tUP, nCores, tdgl, tdolp)
+    getCTX(coords, cwdPath, uniChromo, threshold, bRT, prefix, tUC, tUP, nCores, tdgl, tdolp, bWork=bWork)
 
     # Recalculate syntenic blocks by considering the blocks introduced by CX events
     outSyn(cwdPath, threshold, prefix)
     return 'Finished'
 
 
-def syri(chromo, threshold, coords, cwdPath, bRT, prefix, tUC, tUP, invgl, tdgl, tdolp):
+def syri(chromo, threshold, coords, cwdPath, bRT, prefix, tUC, tUP, invgl, tdgl, tdolp, bWork=0):
     logger = logging.getLogger("syri."+chromo)
     coordsData = coords[(coords.aChr == chromo) & (coords.bChr == chromo) & (coords.bDir == 1)]
     logger.info(chromo+" " + str(coordsData.shape))
@@ -714,9 +715,9 @@ def syri(chromo, threshold, coords, cwdPath, bRT, prefix, tUC, tUP, invgl, tdgl,
     for i in range(len(allTransCluster)):
         if len(allTransCluster[i]) > 0:
             if len(allTransCluster[i]) > 10000:
-                clusterSolutions.append(getBestClusterSubset(allTransCluster[i], allTransBlocksData, bRT, tdolp, chromo, aGroups, bGroups, threshold))
+                clusterSolutions.append(getBestClusterSubset(allTransCluster[i], allTransBlocksData, bRT, tdolp, chromo, aGroups, bGroups, threshold, bWork=bWork))
             else:
-                clusterSolutions.append(getBestClusterSubset(allTransCluster[i], allTransBlocksData, bRT, tdolp, chromo))
+                clusterSolutions.append(getBestClusterSubset(allTransCluster[i], allTransBlocksData, bRT, tdolp, chromo, bWork=bWork))
 
     clusterSolutionBlocks = [i[1] for i in clusterSolutions]
     #clusterBlocks = unlist(clusterSolutionBlocks)

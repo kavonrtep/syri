@@ -343,12 +343,25 @@ def mergeTransBlocks(transBlocks, orderedBlocks, invTransBlocks, invertedBlocks,
         return transBlocksData, orderedIndex
 
 
-def bruteSubsetSelector(cluster, transBlocksData, seedBlocks, bRT):
+def bruteSubsetSelector(cluster, transBlocksData, seedBlocks, bRT, bWork=0):
+    """Best subset of a cluster by exhaustive search, or "Failed" when the
+    projected cost exceeds the cutoff.
+
+    The cutoff is seconds (bRT, option -b) unless bWork (option --brute-work)
+    is set. Seconds made the result depend on CPU speed and load: one input
+    gave 763-944 greedy fallbacks over five runs, and different translocation
+    and duplication calls. bWork counts the combination elements this
+    iteration scanned, which depends only on the input. On JI2822 x
+    CDC_Lewochko (pea, whole genome) a cutoff of 8,000,000 makes the same
+    choice as -b 15 for 99.7% of 141,474 clusters on the host it was
+    calibrated on (1.9 us per work unit, median).
+    """
     logger = logging.getLogger('Brute-force TD identification')
     posComb = [seedBlocks]
     skipList = [seedBlocks]
     for i in cluster:
         startTime = time.time()
+        work = sum(len(c) for c in posComb) + len(posComb)
         if hasattr(transBlocksData[i], "meTo"):
             newPosComb = []
             newSkipList = []
@@ -410,7 +423,11 @@ def bruteSubsetSelector(cluster, transBlocksData, seedBlocks, bRT):
         timeTaken = time.time() - startTime
         remainingIterations = len(cluster) - cluster.index(i)
 
-        if (timeTaken*(1.5**remainingIterations) > bRT):
+        if bWork > 0:
+            tooBig = work*(1.5**remainingIterations) > bWork
+        else:
+            tooBig = timeTaken*(1.5**remainingIterations) > bRT
+        if tooBig:
             logger.info("Cluster is too big for Brute Force, using randomized-greedy approach\nTime taken for last iteration " +
                   str(timeTaken) + ". iterations remaining " + str(remainingIterations))
             return "Failed"
@@ -479,7 +496,7 @@ def readAnnoCoords(cwdPath, uniChromo, prefix):
     return(annoCoords)
 
 
-def getCTX(coords, cwdPath, uniChromo, threshold, bRT, prefix, tUC, tUP, nCores, tdgl, tdolp):
+def getCTX(coords, cwdPath, uniChromo, threshold, bRT, prefix, tUC, tUP, nCores, tdgl, tdolp, bWork=0):
     logger = logging.getLogger("getCTX")
     logger.info("Identifying cross-chromosomal translocation and duplication for chromosome" + str(datetime.now()))
 
@@ -667,6 +684,7 @@ def getCTX(coords, cwdPath, uniChromo, threshold, bRT, prefix, tUC, tUP, nCores,
                                             tdolp=tdolp,
                                             chromo='CTX',
                                             bRT=bRT,
+                                            bWork=bWork,
                                             aGroups=aGroups,
                                             bGroups=bGroups,
                                             threshold=threshold), ctxCluster)
@@ -1858,7 +1876,7 @@ cdef greedySubsetSelector(cluster, transBlocksData, seedblocks, iterCount = 100)
     return(bestScore, bestComb)
 
 
-def getBestClusterSubset(cluster, transBlocksData, bRT, tdolp, chromo='', aGroups=None, bGroups=None, threshold=None):
+def getBestClusterSubset(cluster, transBlocksData, bRT, tdolp, chromo='', aGroups=None, bGroups=None, threshold=None, bWork=0):
     logger = logging.getLogger('tdcluster'+chromo)
     if len(cluster) == 0:
         return
@@ -1870,7 +1888,7 @@ def getBestClusterSubset(cluster, transBlocksData, bRT, tdolp, chromo='', aGroup
         logger.info('Large (>10000 candidates) TD cluster (with '+ str(len(cluster)) +' candidate TDs) identified. Using low-memory high-runtime approach. Iterative sampling disabled.')
         output = greedySubsetSelector2(np.array(cluster, int), transBlocksData, np.array(seedBlocks, int), aGroups, bGroups, threshold, tdolp)
     elif len(cluster) < 50:
-        output = bruteSubsetSelector(cluster, transBlocksData, seedBlocks, bRT)
+        output = bruteSubsetSelector(cluster, transBlocksData, seedBlocks, bRT, bWork)
         if output == "Failed":
             output = greedySubsetSelector(cluster, transBlocksData, seedBlocks)
     else:
