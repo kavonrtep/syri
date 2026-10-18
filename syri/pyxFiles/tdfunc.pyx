@@ -1365,7 +1365,7 @@ cdef greedySubsetSelector2(long[:] cluster, transBlocksData, long[:] seedBlocks,
             topblocks = sorted(list(topblocks), key = lambda x: transBlocksScore[x], reverse = True)[:1]
             totalscore = sum(transBlocksScore[i] for i in topblocks)
             prob = [transBlocksScore[i]/totalscore for i in topblocks]
-            i = int(np.random.choice(topblocks, size = 1, p = prob))
+            i = int(np.random.choice(topblocks, p = prob))
 
             ## update lists to include the selected candidate
             tempcluster[i] = 0
@@ -1564,7 +1564,7 @@ cdef greedySubsetSelectorHeuristic(long[:] cluster, transBlocksData, long[:] see
         topblocks = sorted(list(topblocks), key = lambda x: transBlocksScore[x], reverse = True)[:1]
         totalscore = sum(transBlocksScore[i] for i in topblocks)
         prob = [transBlocksScore[i]/totalscore for i in topblocks]
-        i = int(np.random.choice(topblocks, size = 1, p = prob))
+        i = int(np.random.choice(topblocks, p = prob))
 
         ## update lists to include the selected candidate
         tempcluster[i] = 0
